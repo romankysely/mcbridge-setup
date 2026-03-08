@@ -36,7 +36,7 @@ log "Aktualizace balicku..."
 sudo apt-get update -qq
 
 log "Instalace pipx a python3..."
-sudo apt-get install -y pipx python3 python3-pip > /dev/null
+sudo apt-get install -y pipx python3 python3-pip python3-serial > /dev/null
 
 log "Konfigurace PATH pro pipx..."
 pipx ensurepath
