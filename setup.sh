@@ -8,6 +8,11 @@
 
 set -euo pipefail
 
+# Pokud je stdin pipe (curl | bash), presmeruj interaktivni vstup z terminalu
+if ! [ -t 0 ]; then
+    exec < /dev/tty
+fi
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
