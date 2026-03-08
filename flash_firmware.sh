@@ -121,6 +121,36 @@ flash_firmware() {
     log "Firmware úspěšně nahrán!"
 }
 
+# --- Synchronizace hodin ---
+sync_clock() {
+    title "Synchronizace hodin"
+    log "Čekám na restart zařízení..."
+
+    local waited=0
+    while [ ! -e "$PORT" ]; do
+        sleep 1
+        waited=$((waited + 1))
+        if [ $waited -ge 30 ]; then
+            warn "Port $PORT se neobjevil do 30s — přeskakuji sync hodin."
+            return
+        fi
+    done
+    sleep 2  # chvíle pro dokončení startu firmware
+
+    log "Synchronizuji hodiny zařízení..."
+    python3 - << PYEOF
+import serial, time, calendar
+epoch = int(calendar.timegm(time.gmtime()))
+try:
+    with serial.Serial("$PORT", 115200, timeout=3) as ser:
+        ser.write(f"time {epoch}\r\n".encode())
+        response = ser.readline().decode(errors="replace").strip()
+    print(f"  OK  time {epoch}  ({time.strftime('%Y-%m-%d %H:%M:%S UTC')})")
+except Exception as e:
+    print(f"  WARN: nepodařilo se synchronizovat hodiny: {e}")
+PYEOF
+}
+
 # --- Hlavní program ---
 title "MeshCore Firmware Flash — SenseCAP Solar (P1)"
 
@@ -130,3 +160,4 @@ read -rp "Flashovat teď? [y/N]: " confirm
 [[ "${confirm,,}" != "y" ]] && { warn "Zrušeno."; exit 0; }
 
 flash_firmware
+sync_clock
