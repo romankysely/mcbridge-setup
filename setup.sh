@@ -4,12 +4,7 @@
 # Pouziti:
 #   curl -fsSL https://raw.githubusercontent.com/romankysely/mcbridge-setup/main/setup.sh | bash
 #
-# Co skript dela:
-#   1. Nainstaluje zavislosti (pipx, adafruit-nrfutil + Python 3.13 patche)
-#   2. Nainstaluje mctomqtt daemon
-#   3. Vytvori /etc/mctomqtt/config.d/00-user.toml (s vyzadanim vstupu)
-#   4. Nasadi flash_firmware skript do /usr/local/bin/
-#   5. Nakonfiguruje .bashrc (reminder + barevny prompt)
+#   Skript se interaktivne zepta na GitHub PAT pro stazeni CLAUDE.md.
 
 set -euo pipefail
 
@@ -26,11 +21,46 @@ error() { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 title() { echo -e "\n${BOLD}${BLUE}=== $* ===${NC}\n"; }
 
 BASE_URL="https://raw.githubusercontent.com/romankysely/mcbridge-setup/main"
+CLAUDE_REPO="romankysely/MeshCore"
+CLAUDE_BRANCH="moje-zmeny"
+CLAUDE_PATH="mcbridge-setup/CLAUDE.md"
 
 title "MeshCore Bridge — Inicializace RPi"
 
+# --- 0. GitHub token ---
+title "0/8  GitHub token"
+
+TOKEN_FILE="$HOME/.config/meshcore/config"
+GITHUB_TOKEN="${GITHUB_TOKEN:-}"
+
+# Zkus nacist token z ulozeneho souboru
+if [ -z "$GITHUB_TOKEN" ] && [ -f "$TOKEN_FILE" ]; then
+    GITHUB_TOKEN=$(grep -oP '(?<=GITHUB_TOKEN=)\S+' "$TOKEN_FILE" || true)
+    [ -n "$GITHUB_TOKEN" ] && log "GitHub token nacten z $TOKEN_FILE"
+fi
+
+# Pokud stale neni, zeptej se interaktivne
+if [ -z "$GITHUB_TOKEN" ]; then
+    warn "GitHub token nenalezen. Zadej GitHub Personal Access Token:"
+    read -rsp "  Token: " GITHUB_TOKEN
+    echo ""
+fi
+
+mkdir -p "$(dirname "$TOKEN_FILE")"
+if [ ! -f "$TOKEN_FILE" ]; then
+    cat > "$TOKEN_FILE" << TOKENEOF
+# MeshCore flash konfigurace
+GITHUB_TOKEN=$GITHUB_TOKEN
+# PORT=/dev/ttyACM0   # vychozi, odkomentuj pro zmenu
+TOKENEOF
+    chmod 600 "$TOKEN_FILE"
+    log "Token ulozen do $TOKEN_FILE (chmod 600)"
+else
+    log "$TOKEN_FILE jiz existuje, preskakuji."
+fi
+
 # --- 1. Systemove zavislosti ---
-title "1/6  Systemove zavislosti"
+title "1/8  Systemove zavislosti"
 
 log "Aktualizace balicku..."
 sudo apt-get update -qq
@@ -43,7 +73,7 @@ pipx ensurepath
 export PATH="$HOME/.local/bin:$PATH"
 
 # --- 2. adafruit-nrfutil + patche ---
-title "2/6  adafruit-nrfutil"
+title "2/8  adafruit-nrfutil"
 
 if command -v adafruit-nrfutil &>/dev/null; then
     log "adafruit-nrfutil jiz nainstalovan."
@@ -108,7 +138,7 @@ PYEOF
 fi
 
 # --- 3. mctomqtt daemon ---
-title "3/6  mctomqtt daemon"
+title "3/8  mctomqtt daemon"
 
 if systemctl is-active --quiet mctomqtt 2>/dev/null; then
     log "mctomqtt jiz nainstalovan a bezi."
@@ -121,7 +151,7 @@ else
 fi
 
 # --- 4. Konfigurace mctomqtt ---
-title "4/6  Konfigurace mctomqtt"
+title "4/8  Konfigurace mctomqtt"
 
 USER_CFG="/etc/mctomqtt/config.d/00-user.toml"
 
@@ -224,7 +254,7 @@ TOML
 fi
 
 # --- 5. flash_firmware ---
-title "5/6  flash_firmware skript"
+title "5/8  flash_firmware skript"
 
 mkdir -p "$HOME/meshcore-firmware"
 log "Adresar ~/meshcore-firmware/ pripraven."
@@ -249,7 +279,7 @@ else
 fi
 
 # --- 6. .bashrc ---
-title "6/6  Konfigurace .bashrc"
+title "6/8  Konfigurace .bashrc"
 
 BASHRC="$HOME/.bashrc"
 MARKER="# MeshCore flash reminder"
@@ -272,6 +302,66 @@ BASHEOF
     log ".bashrc aktualizovan."
 fi
 
+# --- 7. Node.js + Claude Code + ensure-claude.service ---
+title "7/8  Node.js 22 + Claude Code"
+
+if command -v node &>/dev/null && node --version | grep -q "^v22"; then
+    log "Node.js 22 jiz nainstalovan: $(node --version)"
+else
+    log "Instalace Node.js 22 z nodesource..."
+    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+    sudo apt-get install -y nodejs
+    log "Node.js nainstalovan: $(node --version)"
+fi
+
+if [ -f /usr/bin/claude ]; then
+    log "Claude Code jiz nainstalovan."
+else
+    log "Instalace Claude Code..."
+    sudo npm install -g @anthropic-ai/claude-code
+    log "Claude Code nainstalovan: $(claude --version 2>/dev/null || echo 'OK')"
+fi
+
+ENSURE_CLAUDE_SERVICE="/etc/systemd/system/ensure-claude.service"
+if [ -f "$ENSURE_CLAUDE_SERVICE" ]; then
+    log "ensure-claude.service jiz existuje."
+else
+    log "Instalace ensure-claude.service..."
+    sudo tee "$ENSURE_CLAUDE_SERVICE" > /dev/null << 'SVCEOF'
+[Unit]
+Description=Ensure Claude Code is installed
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=!/usr/bin/claude
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/npm install -g @anthropic-ai/claude-code
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+    sudo systemctl daemon-reload
+    sudo systemctl enable ensure-claude.service
+    log "ensure-claude.service nainstalovan a povolen."
+fi
+
+# --- 8. CLAUDE.md ---
+title "8/8  CLAUDE.md pro Claude Code"
+
+CLAUDE_MD="$HOME/CLAUDE.md"
+if [ -f "$CLAUDE_MD" ]; then
+    log "CLAUDE.md jiz existuje."
+else
+    log "Stahuji CLAUDE.md..."
+    curl -fsSL \
+        -H "Authorization: token $GITHUB_TOKEN" \
+        "https://raw.githubusercontent.com/$CLAUDE_REPO/$CLAUDE_BRANCH/$CLAUDE_PATH" \
+        -o "$CLAUDE_MD"
+    log "CLAUDE.md ulozeno do $CLAUDE_MD"
+fi
+
 # --- Hotovo ---
 title "Hotovo!"
 echo -e "  ${GREEN}Instalace dokoncena.${NC}"
@@ -281,4 +371,5 @@ echo -e "    1. Pripoj SenseCAP Solar pres USB"
 echo -e "    2. Spust:  ${BOLD}sudo systemctl status mctomqtt${NC}  — over ze bezi"
 echo -e "    3. Nakopiruj firmware .zip do ${BOLD}~/meshcore-firmware/${NC}  (pres WinSCP)"
 echo -e "    4. Spust:  ${BOLD}flash_firmware${NC}"
+echo -e "    5. Pro AI asistenta spust:  ${BOLD}cd ~ && claude${NC}"
 echo ""
