@@ -24,9 +24,9 @@ Raspberry Pi slouzi jako:
 
 ### Predpoklady
 
-- Raspberry Pi OS **Bookworm 64-bit**
+- Raspberry Pi OS **Bookworm 64-bit** Lite
 - Uzivatel: **`admin`**
-- Sitove pripojeni
+- Sitove pripojeni WiFI nebo LAN
 
 ### Jeden prikaz
 
@@ -58,8 +58,6 @@ Hodnoty ktere je potreba zadat:
 | Hodnota | Popis | Priklad |
 |---------|-------|---------|
 | `iata` | 3-pismenny IATA kod letiste pro vasi lokalitu | `PRG` |
-| `email` | Email uctu na letsmesh.net | `user@example.com` |
-| `owner` | Public key vlastnickeho MeshCore companion zarizeni (64 hex znaku) | viz companion app |
 | Lokalni broker | IP, port, uzivatel, heslo lokalniho MQTT brokeru (volitelne) | `192.168.1.100:1883` |
 
 Po zmene konfigurace restartuj:
