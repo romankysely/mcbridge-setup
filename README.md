@@ -7,6 +7,7 @@ Dokumentace pro obnovu Raspberry Pi po vymene SD karty.
 Raspberry Pi slouzi jako:
 1. **MeshCore <-> MQTT bridge** — daemon `mctomqtt` preposila data ze SenseCAP Solar (USB) na MQTT broker
 2. **Firmware flasher** — prikaz `flash_firmware` umoznuje aktualizovat firmware SenseCAP Solar pres USB DFU
+3. **AI asistent** — Claude Code s kontextem tohoto projektu (`~/CLAUDE.md`)
 
 ---
 
@@ -26,7 +27,7 @@ Raspberry Pi slouzi jako:
 
 - Raspberry Pi OS **Bookworm 64-bit** Lite
 - Uzivatel: **`admin`**
-- Sitove pripojeni WiFI nebo LAN
+- Sitove pripojeni WiFi nebo LAN
 
 ### Jeden prikaz
 
@@ -34,18 +35,49 @@ Raspberry Pi slouzi jako:
 curl -fsSL https://raw.githubusercontent.com/romankysely/mcbridge-setup/main/setup.sh | bash
 ```
 
-Skript je interaktivni — zeptá se na IATA kod, email a hesla pro MQTT brokery.
+Skript je interaktivni — zeptá se na GitHub PAT, IATA kod, email a hesla pro MQTT brokery.
 
 ### Co setup.sh nainstaluje
 
 | Krok | Co se stane |
 |------|-------------|
+| 0 | Pozada o GitHub PAT → ulozi do `~/.config/meshcore/config` (chmod 600) |
 | 1 | `pipx` + `python3` + `python3-serial` ze systemovych balicku |
 | 2 | `adafruit-nrfutil 0.5.3` + Python 3.13 patche |
 | 3 | `mctomqtt` daemon (official installer z `Cisien/meshcoretomqtt`) |
 | 4 | `/etc/mctomqtt/config.d/00-user.toml` — interaktivne zadane hodnoty |
 | 5 | `flash_firmware` do `/usr/local/bin/` + adresar `~/meshcore-firmware/` |
 | 6 | `.bashrc` — reminder pri prihlaseni + barevny prompt |
+| 7 | Node.js 22 (nodesource) + Claude Code + `ensure-claude.service` |
+| 8 | `~/CLAUDE.md` — kontext pro Claude Code |
+
+---
+
+## Claude Code (AI asistent)
+
+Claude Code je nainstalovan jako soucast setup.sh. Po dokonceni instalace ho spustis:
+
+```bash
+cd ~
+claude
+```
+
+### ensure-claude.service
+
+Po upgradu `nodejs` pres `apt` muze dojit ke smazani `/usr/bin/claude`. Systemd service
+`ensure-claude.service` ho po bootu automaticky reinstaluje pokud chybi:
+
+```bash
+sudo systemctl status ensure-claude.service
+```
+
+### Rucni reinstalace Claude
+
+Pokud Claude neni k dispozici:
+
+```bash
+sudo npm install -g @anthropic-ai/claude-code
+```
 
 ---
 
@@ -58,6 +90,8 @@ Hodnoty ktere je potreba zadat:
 | Hodnota | Popis | Priklad |
 |---------|-------|---------|
 | `iata` | 3-pismenny IATA kod letiste pro vasi lokalitu | `PRG` |
+| `email` | Email uctu na letsmesh.net | `user@example.com` |
+| `owner` | Public key vlastnickeho MeshCore companion zarizeni (64 hex znaku) | viz companion app |
 | Lokalni broker | IP, port, uzivatel, heslo lokalniho MQTT brokeru (volitelne) | `192.168.1.100:1883` |
 
 Po zmene konfigurace restartuj:
@@ -70,12 +104,9 @@ journalctl -u mctomqtt -f   # sledovani logu
 
 ## Jak aktualizovat firmware
 
-### 1. Sestav firmware ve VSCode/PlatformIO
+### 1. Sestav nebo stahni firmware
 
-Podrobnosti viz `CUSTOM_BUILD.md` v repozitari `romankysely/MeshCore`. Vysledny soubor:
-
-- Vetev `moje-zmeny` (v1.14+): `out/SenseCap_Solar_repeater_debug-v1.14.0.zip`
-- Vetev `moje-zmeny-v1.13`: `out/SenseCap_Solar_repeater_debug-v1.13.zip`
+Zkompiluj firmware v PlatformIO pro SenseCAP Solar P1 (XIAO nRF52840).
 
 ### 2. Nakopiruj firmware na RPi
 
@@ -111,6 +142,9 @@ sudo systemctl restart mctomqtt
 
 # Aktualizace mctomqtt na nejnovejsi verzi
 curl -fsSL https://raw.githubusercontent.com/Cisien/meshcoretomqtt/main/install.sh | sudo bash
+
+# Stav ensure-claude.service
+sudo systemctl status ensure-claude.service
 ```
 
 ---
@@ -171,4 +205,4 @@ Restart=always
 
 ---
 
-*Dokumentace vytvorena 2026-03-08*
+*Dokumentace aktualizovana 2026-03-08*
