@@ -40,7 +40,7 @@ Skript je interaktivni — zeptá se na IATA kod, email a hesla pro MQTT brokery
 
 | Krok | Co se stane |
 |------|-------------|
-| 1 | `pipx` + `python3` ze systemovych balicku |
+| 1 | `pipx` + `python3` + `python3-serial` ze systemovych balicku |
 | 2 | `adafruit-nrfutil 0.5.3` + Python 3.13 patche |
 | 3 | `mctomqtt` daemon (official installer z `Cisien/meshcoretomqtt`) |
 | 4 | `/etc/mctomqtt/config.d/00-user.toml` — interaktivne zadane hodnoty |
@@ -94,7 +94,8 @@ Skript automaticky:
 1. Zastavi `mctomqtt` (uvolni `/dev/ttyACM0`)
 2. Zobrazi seznam .zip souboru v `~/meshcore-firmware/`
 3. Spusti USB DFU: `adafruit-nrfutil dfu serial --touch 1200`
-4. Po dokonceni obnoví `mctomqtt`
+4. Pocka na restart zarizeni a synchronizuje hodiny (`time <epoch>`)
+5. Spusti `mctomqtt`
 
 ---
 
