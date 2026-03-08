@@ -2,9 +2,7 @@
 # setup.sh — Inicializacni skript pro Raspberry Pi (MeshCore Bridge)
 #
 # Pouziti:
-#   bash setup.sh <GITHUB_TOKEN>
-#
-# Kde GITHUB_TOKEN je Personal Access Token s pristupen k romankysely/MeshCore.
+#   curl -fsSL https://raw.githubusercontent.com/romankysely/mcbridge-setup/main/setup.sh | bash
 #
 # Co skript dela:
 #   1. Nainstaluje zavislosti (pipx, adafruit-nrfutil)
@@ -27,18 +25,7 @@ warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 title() { echo -e "\n${BOLD}${BLUE}=== $* ===${NC}\n"; }
 
-GITHUB_TOKEN="${1:-}"
-BASE_URL="https://raw.githubusercontent.com/romankysely/MeshCore/moje-zmeny/mcbridge-setup"
-
-if [ -z "$GITHUB_TOKEN" ]; then
-    error "Chybi GitHub token."
-    echo "  Pouziti: bash setup.sh <GITHUB_TOKEN>"
-    exit 1
-fi
-
-curl_gh() {
-    curl -fsSL -H "Authorization: token $GITHUB_TOKEN" "$@"
-}
+BASE_URL="https://raw.githubusercontent.com/romankysely/mcbridge-setup/main"
 
 title "MeshCore Bridge — Inicializace RPi"
 
@@ -128,7 +115,7 @@ mkdir -p "$HOME/meshcore-firmware"
 log "Adresar ~/meshcore-firmware/ pripraven."
 
 log "Stahuji flash_firmware z GitHubu..."
-curl_gh "$BASE_URL/flash_firmware.sh" | sudo tee /usr/local/bin/flash_firmware > /dev/null
+curl -fsSL "$BASE_URL/flash_firmware.sh" | sudo tee /usr/local/bin/flash_firmware > /dev/null
 sudo chmod +x /usr/local/bin/flash_firmware
 log "flash_firmware nainstalovan do /usr/local/bin/flash_firmware"
 
