@@ -8,9 +8,12 @@
 
 set -euo pipefail
 
-# Pokud je stdin pipe (curl | bash), presmeruj interaktivni vstup z terminalu
+# Pokud je stdin pipe (curl | bash), otevri /dev/tty jako fd 3 pro interaktivni vstup
+# (exec < /dev/tty by prepisalo bash stdin a bash by prestal cist zbytek skriptu z pipe)
 if ! [ -t 0 ]; then
-    exec < /dev/tty
+    exec 3</dev/tty
+else
+    exec 3<&0
 fi
 
 RED='\033[0;31m'
@@ -47,7 +50,7 @@ fi
 # Pokud stale neni, zeptej se interaktivne
 if [ -z "$GITHUB_TOKEN" ]; then
     warn "GitHub token nenalezen. Zadej GitHub Personal Access Token:"
-    read -rsp "  Token: " GITHUB_TOKEN
+    read -rsp "  Token: " GITHUB_TOKEN <&3
     echo ""
 fi
 
@@ -166,20 +169,20 @@ else
     warn "Konfigurace mctomqtt chybi. Zadej hodnoty:"
     echo ""
 
-    read -rp "  IATA kod (napr. PRG): " IATA
-    read -rp "  LetsMesh email: " EMAIL
-    read -rp "  Owner public key (64 hex, nebo Enter pro prazdne): " OWNER
+    read -rp "  IATA kod (napr. PRG): " IATA <&3
+    read -rp "  LetsMesh email: " EMAIL <&3
+    read -rp "  Owner public key (64 hex, nebo Enter pro prazdne): " OWNER <&3
 
     echo ""
     warn "Lokalni MQTT broker (nechej prazdne pro preskoceni):"
-    read -rp "  Server IP (napr. 192.168.1.100): " LOCAL_MQTT_SERVER
+    read -rp "  Server IP (napr. 192.168.1.100): " LOCAL_MQTT_SERVER <&3
 
     LOCAL_BROKER_BLOCK=""
     if [ -n "$LOCAL_MQTT_SERVER" ]; then
-        read -rp "  Port [1883]: " LOCAL_MQTT_PORT
+        read -rp "  Port [1883]: " LOCAL_MQTT_PORT <&3
         LOCAL_MQTT_PORT="${LOCAL_MQTT_PORT:-1883}"
-        read -rp "  Uzivatelske jmeno: " LOCAL_MQTT_USER
-        read -rsp "  Heslo: " LOCAL_MQTT_PASS
+        read -rp "  Uzivatelske jmeno: " LOCAL_MQTT_USER <&3
+        read -rsp "  Heslo: " LOCAL_MQTT_PASS <&3
         echo ""
         LOCAL_BROKER_BLOCK="
 [[broker]]
@@ -307,32 +310,41 @@ BASHEOF
     log ".bashrc aktualizovan."
 fi
 
-# --- 7. Node.js + Claude Code + ensure-claude.service ---
-title "7/8  Node.js 22 + Claude Code"
+# --- 7. Node.js + Claude Code + ensure-claude.service (volitelne) ---
+title "7/8  Node.js 22 + Claude Code (volitelne)"
 
-if command -v node &>/dev/null && node --version | grep -q "^v22"; then
-    log "Node.js 22 jiz nainstalovan: $(node --version)"
-else
-    log "Instalace Node.js 22 z nodesource..."
-    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-    sudo apt-get install -y nodejs
-    log "Node.js nainstalovan: $(node --version)"
-fi
-
+INSTALL_CLAUDE=true
 if [ -f /usr/bin/claude ]; then
-    log "Claude Code jiz nainstalovan."
+    log "Claude Code jiz nainstalovan, preskakuji dotaz."
 else
-    log "Instalace Claude Code..."
-    sudo npm install -g @anthropic-ai/claude-code
-    log "Claude Code nainstalovan: $(claude --version 2>/dev/null || echo 'OK')"
+    read -rp "  Instalovat Claude Code (AI asistent)? [Y/n]: " _claude_ans <&3
+    [[ "${_claude_ans,,}" == n* ]] && INSTALL_CLAUDE=false
 fi
 
-ENSURE_CLAUDE_SERVICE="/etc/systemd/system/ensure-claude.service"
-if [ -f "$ENSURE_CLAUDE_SERVICE" ]; then
-    log "ensure-claude.service jiz existuje."
-else
-    log "Instalace ensure-claude.service..."
-    sudo tee "$ENSURE_CLAUDE_SERVICE" > /dev/null << 'SVCEOF'
+if $INSTALL_CLAUDE; then
+    if command -v node &>/dev/null && node --version | grep -q "^v22"; then
+        log "Node.js 22 jiz nainstalovan: $(node --version)"
+    else
+        log "Instalace Node.js 22 z nodesource..."
+        curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+        sudo apt-get install -y nodejs
+        log "Node.js nainstalovan: $(node --version)"
+    fi
+
+    if [ -f /usr/bin/claude ]; then
+        log "Claude Code jiz nainstalovan."
+    else
+        log "Instalace Claude Code..."
+        sudo npm install -g @anthropic-ai/claude-code
+        log "Claude Code nainstalovan: $(claude --version 2>/dev/null || echo 'OK')"
+    fi
+
+    ENSURE_CLAUDE_SERVICE="/etc/systemd/system/ensure-claude.service"
+    if [ -f "$ENSURE_CLAUDE_SERVICE" ]; then
+        log "ensure-claude.service jiz existuje."
+    else
+        log "Instalace ensure-claude.service..."
+        sudo tee "$ENSURE_CLAUDE_SERVICE" > /dev/null << 'SVCEOF'
 [Unit]
 Description=Ensure Claude Code is installed
 After=network-online.target
@@ -347,9 +359,12 @@ RemainAfterExit=yes
 [Install]
 WantedBy=multi-user.target
 SVCEOF
-    sudo systemctl daemon-reload
-    sudo systemctl enable ensure-claude.service
-    log "ensure-claude.service nainstalovan a povolen."
+        sudo systemctl daemon-reload
+        sudo systemctl enable ensure-claude.service
+        log "ensure-claude.service nainstalovan a povolen."
+    fi
+else
+    log "Instalace Claude Code preskocena."
 fi
 
 # --- 8. CLAUDE.md ---
@@ -376,5 +391,7 @@ echo -e "    1. Pripoj SenseCAP Solar pres USB"
 echo -e "    2. Spust:  ${BOLD}sudo systemctl status mctomqtt${NC}  — over ze bezi"
 echo -e "    3. Nakopiruj firmware .zip do ${BOLD}~/meshcore-firmware/${NC}  (pres WinSCP)"
 echo -e "    4. Spust:  ${BOLD}flash_firmware${NC}"
-echo -e "    5. Pro AI asistenta spust:  ${BOLD}cd ~ && claude${NC}"
+if $INSTALL_CLAUDE; then
+    echo -e "    5. Pro AI asistenta spust:  ${BOLD}cd ~ && claude${NC}"
+fi
 echo ""
