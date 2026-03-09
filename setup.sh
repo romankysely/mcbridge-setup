@@ -51,8 +51,17 @@ fi
 
 # Pokud stale neni, zeptej se interaktivne
 if [ -z "$GITHUB_TOKEN" ]; then
-    warn "GitHub token nenalezen. Zadej GitHub Personal Access Token:"
-    read -rsp "  Token: " GITHUB_TOKEN <&3
+    warn "GitHub token nenalezen."
+    echo ""
+    echo -e "  ${BOLD}Jak ziskat GitHub Personal Access Token (PAT):${NC}"
+    echo -e "    1. Otevri: ${BLUE}https://github.com/settings/tokens${NC}"
+    echo -e "    2. Klikni: Generate new token → Generate new token (classic)"
+    echo -e "    3. Note: napr. 'mcbridge-rpi'"
+    echo -e "    4. Expiration: dle preference (napr. 1 year)"
+    echo -e "    5. Scope: zatrhni ${BOLD}repo${NC}  (cely radek — pro cteni privat. repo)"
+    echo -e "    6. Klikni Generate token → zkopiruj token (ghp_...)"
+    echo ""
+    read -rsp "  Token (ghp_...): " GITHUB_TOKEN <&3
     echo ""
 fi
 
