@@ -32,6 +32,8 @@ BASE_URL="https://raw.githubusercontent.com/romankysely/mcbridge-setup/main"
 CLAUDE_REPO="romankysely/MeshCore"
 CLAUDE_BRANCH="moje-zmeny"
 CLAUDE_PATH="mcbridge-setup/CLAUDE.md"
+MEMORY_PATH="mcbridge-setup/MEMORY.md"
+MEMORY_LOCAL="$HOME/.claude/projects/-home-admin/memory/MEMORY.md"
 
 title "MeshCore Bridge — Inicializace RPi"
 
@@ -310,7 +312,7 @@ BASHEOF
     log ".bashrc aktualizovan."
 fi
 
-# --- 7. Node.js + Claude Code + ensure-claude.service (volitelne) ---
+# --- 7. Node.js + Claude Code + ensure-claude.service + sync-claude-memory (volitelne) ---
 title "7/8  Node.js 22 + Claude Code (volitelne)"
 
 INSTALL_CLAUDE=true
@@ -363,12 +365,91 @@ SVCEOF
         sudo systemctl enable ensure-claude.service
         log "ensure-claude.service nainstalovan a povolen."
     fi
+
+    # sync-claude-memory: automaticky push MEMORY.md na GitHub pri kazde zmene
+    if [ -f /usr/local/bin/sync-claude-memory ]; then
+        log "sync-claude-memory jiz nainstalovan."
+    else
+        log "Instalace sync-claude-memory..."
+        sudo tee /usr/local/bin/sync-claude-memory > /dev/null << 'SYNCEOF'
+#!/usr/bin/env bash
+# Sync ~/.claude/projects/-home-admin/memory/MEMORY.md to GitHub
+
+set -euo pipefail
+
+MEMORY_FILE="/home/admin/.claude/projects/-home-admin/memory/MEMORY.md"
+CONFIG_FILE="/home/admin/.config/meshcore/config"
+REPO="romankysely/MeshCore"
+BRANCH="moje-zmeny"
+REMOTE_PATH="mcbridge-setup/MEMORY.md"
+
+GITHUB_TOKEN=$(grep -oP '(?<=GITHUB_TOKEN=)\S+' "$CONFIG_FILE")
+
+SHA=$(curl -sf \
+  -H "Authorization: token $GITHUB_TOKEN" \
+  "https://api.github.com/repos/$REPO/contents/$REMOTE_PATH?ref=$BRANCH" \
+  | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('sha',''))" 2>/dev/null || true)
+
+CONTENT=$(base64 -w 0 < "$MEMORY_FILE")
+
+if [ -n "$SHA" ]; then
+  PAYLOAD=$(python3 -c "import json; print(json.dumps({'message': 'auto: sync MEMORY.md', 'branch': '$BRANCH', 'content': '$CONTENT', 'sha': '$SHA'}))")
+else
+  PAYLOAD=$(python3 -c "import json; print(json.dumps({'message': 'auto: sync MEMORY.md', 'branch': '$BRANCH', 'content': '$CONTENT'}))")
+fi
+
+HTTP=$(curl -sf -o /dev/null -w "%{http_code}" -X PUT \
+  -H "Authorization: token $GITHUB_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "$PAYLOAD" \
+  "https://api.github.com/repos/$REPO/contents/$REMOTE_PATH")
+
+echo "$(date -Iseconds) sync-claude-memory: HTTP $HTTP"
+SYNCEOF
+        sudo chmod +x /usr/local/bin/sync-claude-memory
+        log "sync-claude-memory nainstalovan."
+    fi
+
+    SYNC_PATH_UNIT="/etc/systemd/system/sync-claude-memory.path"
+    if [ -f "$SYNC_PATH_UNIT" ]; then
+        log "sync-claude-memory.path jiz existuje."
+    else
+        log "Instalace sync-claude-memory systemd units..."
+        sudo tee /etc/systemd/system/sync-claude-memory.service > /dev/null << 'SVCEOF'
+[Unit]
+Description=Sync Claude MEMORY.md to GitHub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=admin
+ExecStart=/usr/local/bin/sync-claude-memory
+StandardOutput=journal
+StandardError=journal
+SVCEOF
+
+        sudo tee "$SYNC_PATH_UNIT" > /dev/null << 'SVCEOF'
+[Unit]
+Description=Watch Claude MEMORY.md for changes
+
+[Path]
+PathModified=/home/admin/.claude/projects/-home-admin/memory/MEMORY.md
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+
+        sudo systemctl daemon-reload
+        sudo systemctl enable --now sync-claude-memory.path
+        log "sync-claude-memory.path nainstalovan a spusten."
+    fi
 else
     log "Instalace Claude Code preskocena."
 fi
 
-# --- 8. CLAUDE.md ---
-title "8/8  CLAUDE.md pro Claude Code"
+# --- 8. CLAUDE.md + MEMORY.md ---
+title "8/8  CLAUDE.md + MEMORY.md pro Claude Code"
 
 CLAUDE_MD="$HOME/CLAUDE.md"
 if [ -f "$CLAUDE_MD" ]; then
@@ -380,6 +461,22 @@ else
         "https://raw.githubusercontent.com/$CLAUDE_REPO/$CLAUDE_BRANCH/$CLAUDE_PATH" \
         -o "$CLAUDE_MD"
     log "CLAUDE.md ulozeno do $CLAUDE_MD"
+fi
+
+if [ -f "$MEMORY_LOCAL" ]; then
+    log "MEMORY.md jiz existuje."
+else
+    log "Stahuji MEMORY.md..."
+    mkdir -p "$(dirname "$MEMORY_LOCAL")"
+    HTTP=$(curl -sf -o "$MEMORY_LOCAL" -w "%{http_code}" \
+        -H "Authorization: token $GITHUB_TOKEN" \
+        "https://raw.githubusercontent.com/$CLAUDE_REPO/$CLAUDE_BRANCH/$MEMORY_PATH" || true)
+    if [ -s "$MEMORY_LOCAL" ]; then
+        log "MEMORY.md ulozeno do $MEMORY_LOCAL"
+    else
+        warn "MEMORY.md nenalezeno v repozitari (prvni instalace) — bude vytvoreno pri prvnim spusteni claude."
+        rm -f "$MEMORY_LOCAL"
+    fi
 fi
 
 # --- Hotovo ---
