@@ -48,8 +48,8 @@ Skript je interaktivni — zeptá se na GitHub PAT, IATA kod, email a hesla pro 
 | 4 | `/etc/mctomqtt/config.d/00-user.toml` — interaktivne zadane hodnoty |
 | 5 | `flash_firmware` do `/usr/local/bin/` + adresar `~/meshcore-firmware/` |
 | 6 | `.bashrc` — reminder pri prihlaseni + barevny prompt |
-| 7 | *(volitelne)* Node.js 22 (nodesource) + Claude Code + `ensure-claude.service` |
-| 8 | `~/CLAUDE.md` — kontext pro Claude Code |
+| 7 | *(volitelne)* Node.js 22 (nodesource) + Claude Code + `ensure-claude.service` + `sync-claude-memory` |
+| 8 | `~/CLAUDE.md` + `~/.claude/.../MEMORY.md` — kontext a pamet pro Claude Code |
 
 ---
 
@@ -70,6 +70,20 @@ Po upgradu `nodejs` pres `apt` muze dojit ke smazani `/usr/bin/claude`. Systemd 
 
 ```bash
 sudo systemctl status ensure-claude.service
+```
+
+### sync-claude-memory
+
+Claude si automaticky udrzuje pamet v `~/.claude/projects/-home-admin/memory/MEMORY.md`.
+Service `sync-claude-memory.path` sleduje tento soubor a pri kazde zmene ho pushne
+do tohoto repozitare (`mcbridge-setup/MEMORY.md`). Po obnove SD karty setup.sh
+MEMORY.md automaticky stahne zpet — Claude si tak pamatuje vse i po reinstalaci.
+
+```bash
+# Stav sledovani
+sudo systemctl status sync-claude-memory.path
+# Logy poslednich syncu
+journalctl -u sync-claude-memory.service -n 10
 ```
 
 ### Rucni reinstalace Claude
@@ -207,3 +221,4 @@ Restart=always
 ---
 
 *Dokumentace aktualizovana 2026-03-09*
+
