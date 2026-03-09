@@ -48,14 +48,15 @@ Skript je interaktivni — zeptá se na GitHub PAT, IATA kod, email a hesla pro 
 | 4 | `/etc/mctomqtt/config.d/00-user.toml` — interaktivne zadane hodnoty |
 | 5 | `flash_firmware` do `/usr/local/bin/` + adresar `~/meshcore-firmware/` |
 | 6 | `.bashrc` — reminder pri prihlaseni + barevny prompt |
-| 7 | Node.js 22 (nodesource) + Claude Code + `ensure-claude.service` |
+| 7 | *(volitelne)* Node.js 22 (nodesource) + Claude Code + `ensure-claude.service` |
 | 8 | `~/CLAUDE.md` — kontext pro Claude Code |
 
 ---
 
 ## Claude Code (AI asistent)
 
-Claude Code je nainstalovan jako soucast setup.sh. Po dokonceni instalace ho spustis:
+Claude Code je **volitelnou** soucasti setup.sh — skript se pri instalaci zepta `[Y/n]`.
+Po dokonceni instalace ho spustis:
 
 ```bash
 cd ~
@@ -205,4 +206,4 @@ Restart=always
 
 ---
 
-*Dokumentace aktualizovana 2026-03-08*
+*Dokumentace aktualizovana 2026-03-09*
