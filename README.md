@@ -119,7 +119,7 @@ journalctl -u mctomqtt -f   # sledovani logu
 
 ## Jak aktualizovat firmware
 
-### 1. Sestav nebo stahni firmware
+### 1. Sestav nebo stahni firmware .ZIP
 
 Zkompiluj firmware v PlatformIO pro SenseCAP Solar P1 (XIAO nRF52840).
 
